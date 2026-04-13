@@ -50,11 +50,6 @@ export function renderLogin() {
           Não tem uma conta? <a href="#" data-route="/register" onclick="event.preventDefault()">Cadastre-se grátis</a>
         </div>
 
-        <div style="margin-top:var(--sp-6); padding:var(--sp-4); background:rgba(124,58,237,0.08); border-radius:var(--radius-md); border:1px solid rgba(124,58,237,0.15);">
-          <p style="font-size:var(--fs-xs); color:var(--text-secondary); text-align:center;">
-            <strong style="color:var(--violet-400);">Demo:</strong> Use <strong>demo@neuroopsai.online</strong> / <strong>demo123</strong>
-          </p>
-        </div>
       </div>
     </div>
   `;

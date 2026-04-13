@@ -59,23 +59,9 @@ function createDemoRequests(userId) {
 }
 
 export function initAuth() {
-  // Initialize demo users if not exists
+  // Initialize empty users list if not exists
   if (!localStorage.getItem(USERS_KEY)) {
-    const demoUsers = [
-      {
-        id: 'user_demo',
-        name: 'Victor Takayama',
-        email: 'demo@neuroopsai.online',
-        password: 'demo123',
-        company: 'Takayama Advisory',
-        phone: '(11) 99999-9999',
-        plan: 'scale',
-        planName: 'Scale',
-        createdAt: '2026-01-15T10:00:00Z',
-      },
-    ];
-    localStorage.setItem(USERS_KEY, JSON.stringify(demoUsers));
-    localStorage.setItem('neuroops_requests_user_demo', JSON.stringify(createDemoRequests('user_demo')));
+    localStorage.setItem(USERS_KEY, JSON.stringify([]));
   }
 }
 

@@ -100,5 +100,26 @@ app.post('/api/billing-history', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 });
 
+// 6. Proxy para N8N (Bypass CORS)
+app.post('/api/notify-n8n', async (req, res) => {
+  try {
+     const n8nUrl = 'https://n8n.srv1263977.hstgr.cloud/webhook/neuroops-checkout';
+     // Usamos fetch nativo do Node 18+
+     const response = await fetch(n8nUrl, {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify(req.body)
+     });
+     
+     if (response.ok) {
+       res.json({ success: true });
+     } else {
+       res.status(500).json({ error: 'Falha no N8N' });
+     }
+  } catch (e) {
+     res.status(500).json({ error: e.message });
+  }
+});
+
 const PORT = process.env.PORT || 4243;
 app.listen(PORT, () => console.log(`NeuroOps Backend escutando na porta ${PORT} com CORS Globalizado!`));

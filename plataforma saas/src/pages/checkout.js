@@ -218,10 +218,10 @@ async function initializeStripeElements() {
         if (isLoggedIn()) {
             addRequest(record, window._checkoutState.paymentIntentId);
             
-            // 🤖 ACIONAMENTO N8N AUTOMAÇÃO
+            // 🤖 ACIONAMENTO N8N AUTOMAÇÃO (Via Proxy Seguro)
             try {
                const u = getUser();
-               fetch('https://n8n.srv1263977.hstgr.cloud/webhook/neuroops-checkout', {
+               fetch(`${API_URL}/api/notify-n8n`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({

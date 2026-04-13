@@ -1,0 +1,246 @@
+import { isLoggedIn, getRequestById, updateRequest } from '../auth.js';
+import { navigateTo } from '../router.js';
+import { requestStatuses } from '../data/services.js';
+import { showToast } from '../components/modal.js';
+import { API_URL } from '../config.js';
+
+export function renderRequestDetail({ query }) {
+  if (!isLoggedIn()) {
+    navigateTo('/login');
+    return;
+  }
+
+  const reqId = query?.get('id');
+  if (!reqId) {
+    navigateTo('/requests');
+    return;
+  }
+
+  const req = getRequestById(reqId);
+  if (!req) {
+    navigateTo('/requests');
+    return;
+  }
+
+  const main = document.getElementById('main-content');
+  const status = requestStatuses[req.status] || requestStatuses.pending;
+
+  const paymentTimeStr = req.paymentTime 
+    ? new Date(req.paymentTime).toLocaleString('pt-BR') 
+    : new Date(req.createdAt).toLocaleString('pt-BR');
+    
+  const paymentStatus = req.paymentStatus || 'Aprovado (Logado)';
+
+  main.innerHTML = `
+    <div class="requests-page" style="padding: var(--sp-12) 0;">
+      <div class="container" style="max-width: 900px;">
+        <button class="btn btn-ghost" id="back-btn" style="margin-bottom: var(--sp-6); display:flex; align-items:center; gap:0.5rem; color:var(--text-secondary);">
+          <span class="material-symbols-rounded">arrow_back</span> Voltar à Central
+        </button>
+        
+        <div class="glass-card-static" style="padding: var(--sp-8); position: relative; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.4);">
+          <!-- Status Line Top -->
+          <div style="position: absolute; top:0; left:0; right:0; height: 6px; background: var(--${status.color}-500, var(--emerald-500));"></div>
+          
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: var(--sp-6);">
+            <div>
+              <h1 style="font-size: var(--fs-3xl); margin-bottom: 0.5rem; font-weight:700;">${req.title}</h1>
+              <div style="color: var(--text-tertiary); display:flex; gap: 1rem; font-size: 0.85rem;">
+                <span>REF: ${req.id}</span>
+                <span>•</span>
+                <span>Emissão: ${new Date(req.createdAt).toLocaleDateString('pt-BR')}</span>
+              </div>
+            </div>
+            <span class="badge badge-${status.color}" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
+              <span class="status-dot status-dot-${status.dot}"></span>
+              ${status.label}
+            </span>
+          </div>
+
+          <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--sp-8); padding-bottom: var(--sp-6); border-bottom: 1px solid rgba(255,255,255,0.05); text-align:justify;">
+            ${req.description || 'Operação nativa registrada e agendada para setup de infraestrutura. O agente arquiteto de Master Workflow assumirá as frentes em breve.'}
+          </p>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: var(--sp-8); margin-bottom: var(--sp-8);">
+            
+            <!-- Coluna Operacional -->
+            <div>
+              <h3 style="margin-bottom: var(--sp-4); font-size: 1.1rem; color:var(--text-primary);"><span class="material-symbols-rounded" style="vertical-align:middle; font-size:1.2rem; color:var(--violet-400);">memory</span> Ficha Técnica</h3>
+              <div style="display:flex; flex-direction:column; gap: var(--sp-3);">
+                <div style="display:flex; justify-content:space-between; padding: 0.8rem; background: rgba(255,255,255,0.015); border-radius: 6px; border:1px solid rgba(255,255,255,0.02);">
+                  <span style="color:var(--text-tertiary); font-size:0.9rem;">Serviço</span>
+                  <span style="font-weight: 500; font-size:0.95rem;">${req.serviceName}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding: 0.8rem; background: rgba(255,255,255,0.015); border-radius: 6px; border:1px solid rgba(255,255,255,0.02);">
+                  <span style="color:var(--text-tertiary); font-size:0.9rem;">Plano Foco</span>
+                  <span style="font-weight: 500; color:var(--violet-300); font-size:0.95rem;">${req.complexityName}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding: 0.8rem; background: rgba(255,255,255,0.015); border-radius: 6px; border:1px solid rgba(255,255,255,0.02);">
+                  <span style="color:var(--text-tertiary); font-size:0.9rem;">Plataforma Engine</span>
+                  <span style="font-weight: 500; display:flex; align-items:center; gap:0.4rem; font-size:0.95rem;">
+                    <span class="material-symbols-rounded" style="font-size:1rem; color:var(--emerald-400);">precision_manufacturing</span> 
+                    ${req.platformName}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Coluna Financeira -->
+            <div>
+              <h3 style="margin-bottom: var(--sp-4); font-size: 1.1rem; color:var(--text-primary);"><span class="material-symbols-rounded" style="vertical-align:middle; font-size:1.2rem; color:var(--emerald-400);">account_balance_wallet</span> Raio-X Financeiro</h3>
+              <div style="display:flex; flex-direction:column; gap: var(--sp-3);">
+                <div style="display:flex; justify-content:space-between; padding: 0.8rem; background: rgba(255,255,255,0.015); border-radius: 6px; border:1px solid rgba(255,255,255,0.02);">
+                  <span style="color:var(--text-tertiary); font-size:0.9rem;">Ordem Stripe</span>
+                  <span style="font-weight: 700; color:var(--emerald-400);">R$ ${req.price?.toLocaleString('pt-BR') || '0,00'}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding: 0.8rem; background: rgba(255,255,255,0.015); border-radius: 6px; border:1px solid rgba(255,255,255,0.02);">
+                  <span style="color:var(--text-tertiary); font-size:0.9rem;">Diagnóstico</span>
+                  <span style="font-weight: 500; display:flex; align-items:center; gap:0.4rem; font-size:0.95rem; color:${req.paymentStatus === 'Cancelado' || req.paymentStatus === 'Reembolsado' ? '#ef4444' : 'var(--emerald-400)'};">
+                     <span class="material-symbols-rounded" style="font-size:1.1rem;">${req.paymentStatus === 'Cancelado' || req.paymentStatus === 'Reembolsado' ? 'cancel' : 'check_circle'}</span>
+                     ${paymentStatus}
+                  </span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding: 0.8rem; background: rgba(255,255,255,0.015); border-radius: 6px; border:1px solid rgba(255,255,255,0.02);">
+                  <span style="color:var(--text-tertiary); font-size:0.9rem;">Momento (Timestamp)</span>
+                  <span style="font-weight: 500; font-size:0.85rem; color:var(--text-secondary);">${paymentTimeStr}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Actions (Billing / Delivery Cancel) -->
+          ${req.status !== 'canceled' && req.status !== 'paused' && req.paymentStatus !== 'Reembolsado' ? `
+          <div style="margin-top: var(--sp-8); padding-top: var(--sp-6); border-top: 1px solid rgba(255,255,255,0.05);">
+             <h3 style="margin-bottom: var(--sp-4); font-size: 0.95rem; font-weight: 600; color: #f87171; display:flex; align-items:center; gap:0.5rem; text-transform:uppercase; letter-spacing:0.5px;">
+               <span class="material-symbols-rounded">warning</span> Interrupção Tática
+             </h3>
+             <div style="display:flex; gap: 1rem; flex-wrap:wrap;">
+                <button class="btn btn-secondary" id="btn-cancel-no-refund" style="border-color: rgba(239, 68, 68, 0.2); color: #fca5a5; font-size: 0.9rem; padding: 0.6rem 1.2rem;">
+                   Pausar Operação (Retenção Temporária)
+                </button>
+                <button class="btn btn-secondary" id="btn-cancel-refund" style="border-color: rgba(239, 68, 68, 0.2); color: #fca5a5; font-size: 0.9rem; padding: 0.6rem 1.2rem;">
+                   Destruir Instância e Solicitar Reembolso (Stripe)
+                </button>
+             </div>
+          </div>
+          ` : req.status === 'paused' ? `
+          <div style="margin-top: var(--sp-8); padding: var(--sp-6); border-radius: 8px; background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245, 158, 11, 0.3);">
+             <h3 style="margin-bottom: var(--sp-2); font-size: 1.1rem; color: #f59e0b; display:flex; align-items:center; gap:0.5rem;">
+               <span class="material-symbols-rounded">timer</span> Modo de Retenção Ativado
+             </h3>
+             <p style="color: #fbbf24; margin-bottom: var(--sp-4);">
+                A infraestrutura foi pausada, mas não deletada. Se a operação não for reativada em até <strong style="color:#fff;" id="countdown-timer">3h 00m 00s</strong>, nossos Agentes destruirão os recursos automatizadamente e o reembolso da Stripe será forçosamente acionado para o cliente.
+             </p>
+             <div style="display:flex; gap: 1rem; flex-wrap:wrap;">
+                <button class="btn btn-primary" id="btn-reactivate" style="background: var(--emerald-600); border-color: var(--emerald-500); display:flex; align-items:center; gap:0.4rem;">
+                   <span class="material-symbols-rounded" style="font-size:1.2rem;">power</span> Reativar Operação
+                </button>
+                <button class="btn btn-secondary" id="btn-force-destroy" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171; display:flex; align-items:center; gap:0.4rem;">
+                   <span class="material-symbols-rounded" style="font-size:1.2rem;">delete_forever</span> Destruir e Reembolsar Agora
+                </button>
+             </div>
+          </div>
+          ` : `
+          <div style="margin-top: var(--sp-8); padding: var(--sp-4); border-radius: 8px; background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.3); text-align:center;">
+             <p style="color: #f87171; margin:0; display:flex; align-items:center; justify-content:center; gap:0.5rem;">
+                <span class="material-symbols-rounded">block</span> Esta operação teve seus recursos do servidor oficialmente interrompidos e reembolsados.
+             </p>
+          </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Listeners
+  // Function to process Real Refund
+  const processRealRefund = async () => {
+     if(req.paymentIntentId) {
+        try {
+           const res = await fetch(`${API_URL}/api/refund-payment`, {
+               method: "POST", headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({ paymentIntentId: req.paymentIntentId })
+           });
+           const data = await res.json();
+           if(data.success || data.error?.includes('has already been refunded')) return true;
+           console.error("Refund failed", data);
+        } catch(e) { console.error(e) }
+     }
+     return true; // fallback for missing intents on old records
+  };
+
+  // Timer logic for paused state
+  let timerInterval;
+  if (req.status === 'paused' && req.pausedAt) {
+     const durationSec = 3 * 60 * 60; // 3 horas em segundos
+     let elapsed = Math.floor((Date.now() - req.pausedAt) / 1000);
+     let remaining = durationSec - elapsed;
+
+     const timerEl = document.getElementById('countdown-timer');
+     
+     if (remaining <= 0) {
+        processRealRefund().then(() => {
+            updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado (Timer Esgotado)' });
+            if (timerEl) renderRequestDetail({ query }); // redraw
+        });
+     } else {
+        timerInterval = setInterval(() => {
+           remaining--;
+           if (remaining <= 0) {
+              clearInterval(timerInterval);
+              processRealRefund().then(() => {
+                  updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado (Timer Esgotado)' });
+                  renderRequestDetail({ query });
+              });
+              return;
+           }
+           let h = Math.floor(remaining / 3600);
+           let m = Math.floor((remaining % 3600) / 60);
+           let s = remaining % 60;
+           if (timerEl) timerEl.textContent = `${h}h ${m < 10 ? '0' : ''}${m}m ${s < 10 ? '0' : ''}${s}s`;
+        }, 1000);
+     }
+  }
+
+  // Desmonta intervalo de forma simulada no SPA ao voltar
+  document.getElementById('back-btn')?.addEventListener('click', () => {
+    if (timerInterval) clearInterval(timerInterval);
+    navigateTo('/requests');
+  });
+
+  document.getElementById('btn-cancel-no-refund')?.addEventListener('click', () => {
+     if(confirm('Atenção: A operação será suspensa provisoriamente. Iniciaremos um cronômetro de 3 Horas para destruição automática e reembolso se não for reativada. Concorda?')) {
+        updateRequest(req.id, { status: 'paused', paymentStatus: 'Pausado (Retido)', pausedAt: Date.now() });
+        showToast('Operação pausada com protocolo de alerta. Cronômetro ativado.', 'warning');
+        renderRequestDetail({ query });
+     }
+  });
+
+  document.getElementById('btn-reactivate')?.addEventListener('click', () => {
+     if (timerInterval) clearInterval(timerInterval);
+     updateRequest(req.id, { status: 'pending', paymentStatus: 'Aprovado (Logado)' });
+     showToast('Cronômetro cancelado. Operação reativada em produção com sucesso!', 'success');
+     renderRequestDetail({ query });
+  });
+
+  document.getElementById('btn-force-destroy')?.addEventListener('click', async () => {
+     if(confirm('Operação Crítica: Bypass manual. Destruir tudo e acionar API Stripe imediatamente?')) {
+        if (timerInterval) clearInterval(timerInterval);
+        document.getElementById('btn-force-destroy').innerHTML = 'Destruindo Coisas...';
+        await processRealRefund();
+        updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado' });
+        showToast('Destruição forçada concluída com API Stripe.', 'error');
+        renderRequestDetail({ query });
+     }
+  });
+
+  document.getElementById('btn-cancel-refund')?.addEventListener('click', async () => {
+     if(confirm('Operação Risco: Emitir ordem de Estorno/Refund para a Stripe API imediatamente?')) {
+        document.getElementById('btn-cancel-refund').innerHTML = 'Emitindo Refund...';
+        await processRealRefund();
+        updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado' });
+        showToast('Sucesso. A comunicação com o Dashboard da Stripe validou a devolução.', 'success');
+        renderRequestDetail({ query });
+     }
+  });
+}

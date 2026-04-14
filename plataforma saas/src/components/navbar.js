@@ -45,11 +45,11 @@ export async function renderNavbar() {
       </div>
 
       <div class="navbar-actions">
-        ${loggedIn ? `
+        ${loggedIn && user ? `
           <div class="navbar-user" id="navbar-user-btn" style="position:relative;">
-            <div class="navbar-avatar">${user.name.charAt(0).toUpperCase()}</div>
+            <div class="navbar-avatar">${(user.name || 'U').charAt(0).toUpperCase()}</div>
             <div class="navbar-user-info">
-              <span class="navbar-user-name">${user.name.split(' ')[0]}</span>
+              <span class="navbar-user-name">${(user.name || 'Usuário').split(' ')[0]}</span>
               <span class="navbar-user-plan">${user.planName || 'Free'}</span>
             </div>
             <div class="navbar-dropdown ${dropdownOpen ? '' : 'hidden'}" id="navbar-dropdown">

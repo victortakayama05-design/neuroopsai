@@ -34,9 +34,9 @@ async function fetchProfile(userId) {
 export async function getUser() {
   if (currentUser) return currentUser;
   
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (session?.user) {
-    await fetchProfile(session.user.id);
+  const { data, error } = await supabase.auth.getSession();
+  if (data?.session?.user) {
+    await fetchProfile(data.session.user.id);
     return currentUser;
   }
   return null;
@@ -134,7 +134,7 @@ export async function getRequests() {
     return [];
   }
   
-  return data.map(r => ({
+  return (data || []).map(r => ({
     ...r,
     serviceName: r.servicename,
     complexityName: r.complexityname,
@@ -298,7 +298,7 @@ export async function getAllRequests() {
     console.error('Erro buscando todos requests (Admin):', error);
     return [];
   }
-  return data;
+  return data || [];
 }
 
 export async function getAllUsersProfile() {
@@ -311,7 +311,7 @@ export async function getAllUsersProfile() {
     console.error('Erro buscando usuários (Admin):', error);
     return [];
   }
-  return data;
+  return data || [];
 }
 
 export async function sendAdminMessage(requestId, content) {

@@ -111,6 +111,27 @@ export async function renderRequestDetail({ query }) {
               </div>
             </div>
           </div>
+
+          ${(req.n8n_link || req.readme_link) ? `
+          <div style="margin-bottom: var(--sp-8); padding: var(--sp-6); border-radius: 8px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2);">
+            <h3 style="margin-bottom: var(--sp-4); font-size: 1.1rem; color: var(--emerald-400); display:flex; align-items:center; gap:0.5rem;">
+               <span class="material-symbols-rounded">inventory_2</span> Entregáveis (Sua Automação)
+            </h3>
+            <p style="color: var(--text-secondary); margin-bottom: var(--sp-4); font-size: 0.95rem;">
+               Sua automação foi concluída com sucesso. Acesse os arquivos da entrega abaixo para prosseguir com a implementação.
+            </p>
+            <div style="display:flex; gap: 1rem; flex-wrap:wrap;">
+               ${req.n8n_link ? `
+               <a href="${req.n8n_link}" target="_blank" class="btn btn-primary" style="display:flex; align-items:center; gap:0.4rem; background: var(--emerald-600); border:none;">
+                  <span class="material-symbols-rounded">download</span> Baixar Workflow (JSON)
+               </a>` : ''}
+               ${req.readme_link ? `
+               <a href="${req.readme_link}" target="_blank" class="btn btn-secondary" style="display:flex; align-items:center; gap:0.4rem;">
+                  <span class="material-symbols-rounded">menu_book</span> Ler Documentação
+               </a>` : ''}
+            </div>
+          </div>
+          ` : ''}
           
           <!-- Actions (Billing / Delivery Cancel) -->
           ${req.status !== 'canceled' && req.status !== 'paused' && req.paymentStatus !== 'Reembolsado' ? `

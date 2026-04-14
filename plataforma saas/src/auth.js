@@ -286,3 +286,63 @@ export async function sendMessage(requestId, content) {
 
   return data;
 }
+
+// ==== ADMIN FUNCTIONS ====
+export async function getAllRequests() {
+  const { data, error } = await supabase
+    .from('requests')
+    .select('*')
+    .order('created_at', { ascending: false });
+    
+  if (error) {
+    console.error('Erro buscando todos requests (Admin):', error);
+    return [];
+  }
+  return data;
+}
+
+export async function getAllUsersProfile() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false });
+    
+  if (error) {
+    console.error('Erro buscando usuários (Admin):', error);
+    return [];
+  }
+  return data;
+}
+
+export async function sendAdminMessage(requestId, content) {
+  const payload = {
+    request_id: requestId,
+    sender_type: 'agent_support', 
+    content: content
+  };
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Erro enviando msg Admin:', error);
+    return null;
+  }
+  return data;
+}
+
+export async function updateAdminRequest(id, updates) {
+  const { data, error } = await supabase
+    .from('requests')
+    .update(updates)
+    .eq('id', id);
+    
+  if (error) {
+    console.error('Upd Admin Req Err:', error);
+    return false;
+  }
+  return true;
+}

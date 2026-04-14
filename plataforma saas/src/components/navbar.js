@@ -56,8 +56,9 @@ export async function renderNavbar() {
               <a class="navbar-dropdown-item" href="#/dashboard">📊 Dashboard</a>
               <a class="navbar-dropdown-item" href="#/profile">👤 Meu Perfil</a>
               <a class="navbar-dropdown-item" href="#/requests">📋 Solicitações</a>
+              ${user.email === 'financeiro@neuroopsai.online' ? '<a class="navbar-dropdown-item" style="color:var(--accent-color)" href="#/admin">👑 Painel Master</a>' : ''}
               <div class="navbar-dropdown-divider"></div>
-              <div class="navbar-dropdown-item" id="logout-btn">🚪 Sair</div>
+              <div class="navbar-dropdown-item" id="logout-btn">🔓 Sair</div>
             </div>
           </div>
         ` : `

@@ -68,6 +68,14 @@ function init() {
     renderFooter();
   });
 
+  registerRoute('/admin', () => {
+    import('./pages/admin.js').then(module => {
+      renderNavbar();
+      module.renderAdmin();
+      renderFooter();
+    });
+  });
+
   registerRoute('/pricing', () => {
     renderNavbar();
     renderPricing();

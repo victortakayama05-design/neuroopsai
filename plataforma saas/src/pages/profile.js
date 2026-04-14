@@ -5,15 +5,17 @@ import { plans } from '../data/plans.js';
 import { showToast } from '../components/modal.js';
 import { renderNavbar } from '../components/navbar.js';
 
-export function renderProfile() {
-  if (!isLoggedIn()) {
+export async function renderProfile() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:50vh;"><span class="material-symbols-rounded spin gradient-emoji" style="font-size:3rem;">sync</span></div>';
+
+  if (!(await isLoggedIn())) {
     navigateTo('/login');
     return;
   }
 
-  const main = document.getElementById('main-content');
-  const user = getUser();
-  const requests = getRequests();
+  const user = await getUser();
+  const requests = await getRequests();
   const currentPlan = plans.find(p => p.id === user.plan);
 
   main.innerHTML = `
@@ -112,7 +114,7 @@ export function renderProfile() {
   `;
 
   // Event listeners
-  document.getElementById('profile-form')?.addEventListener('submit', (e) => {
+  document.getElementById('profile-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('profile-name').value.trim();
     const company = document.getElementById('profile-company').value.trim();
@@ -123,16 +125,20 @@ export function renderProfile() {
       return;
     }
 
-    updateUser({ name, company, phone });
-    showToast('Perfil atualizado com sucesso!', 'success');
-    renderNavbar();
+    const success = await updateUser({ name, company, phone });
+    if (success) {
+      showToast('Perfil atualizado com sucesso!', 'success');
+      renderNavbar();
+    } else {
+      showToast('Erro ao atualizar perfil.', 'error');
+    }
   });
 
   document.getElementById('profile-upgrade')?.addEventListener('click', () => navigateTo('/pricing'));
   document.getElementById('profile-choose-plan')?.addEventListener('click', () => navigateTo('/pricing'));
-  document.getElementById('profile-cancel')?.addEventListener('click', () => {
+  document.getElementById('profile-cancel')?.addEventListener('click', async () => {
     if (confirm('Tem certeza que deseja cancelar seu plano? Esta ação pode ser revertida.')) {
-      updateUser({ plan: null, planName: null });
+      await updateUser({ plan: null, planName: null });
       showToast('Plano cancelado.', 'info');
       renderNavbar();
       renderProfile();

@@ -6,8 +6,11 @@ import { t } from '../locale.js';
 import { showToast } from '../components/modal.js';
 import { API_URL } from '../config.js';
 
-export function renderDashboard() {
-  if (!isLoggedIn()) {
+export async function renderDashboard() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:50vh;"><span class="material-symbols-rounded spin gradient-emoji" style="font-size:3rem;">sync</span></div>';
+
+  if (!(await isLoggedIn())) {
     navigateTo('/login');
     return;
   }
@@ -24,9 +27,8 @@ export function renderDashboard() {
      }
   }
 
-  const main = document.getElementById('main-content');
-  const user = getUser();
-  const requests = getRequests();
+  const user = await getUser();
+  const requests = await getRequests();
 
   const activeRequests = requests.filter(r => !['completed', 'cancelled'].includes(r.status));
   const completedRequests = requests.filter(r => r.status === 'completed');

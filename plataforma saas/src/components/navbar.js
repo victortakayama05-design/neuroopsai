@@ -5,10 +5,10 @@ import { t, getLocale, setLocale } from '../locale.js';
 let dropdownOpen = false;
 let scrollHandlerAdded = false;
 
-export function renderNavbar() {
+export async function renderNavbar() {
   const nav = document.getElementById('navbar');
-  const user = getUser();
-  const loggedIn = isLoggedIn();
+  const loggedIn = await isLoggedIn();
+  const user = loggedIn ? await getUser() : null;
 
   const publicLinks = [
     { label: t('services'), route: '/services' },
@@ -94,12 +94,11 @@ export function renderNavbar() {
     });
   });
 
-  // Logout
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', (e) => {
+    logoutBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      logout();
+      await logout();
       dropdownOpen = false;
       navigateTo('/');
       renderNavbar();

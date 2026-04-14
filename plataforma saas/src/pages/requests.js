@@ -5,14 +5,16 @@ import { requestStatuses } from '../data/services.js';
 
 let activeFilter = 'all';
 
-export function renderRequests() {
-  if (!isLoggedIn()) {
+export async function renderRequests() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:50vh;"><span class="material-symbols-rounded spin gradient-emoji" style="font-size:3rem;">sync</span></div>';
+
+  if (!(await isLoggedIn())) {
     navigateTo('/login');
     return;
   }
 
-  const main = document.getElementById('main-content');
-  const requests = getRequests();
+  const requests = await getRequests();
 
   const filteredRequests = activeFilter === 'all'
     ? requests

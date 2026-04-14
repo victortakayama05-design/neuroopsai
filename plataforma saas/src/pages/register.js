@@ -85,7 +85,7 @@ export function renderRegister() {
   `;
 
   // Event listeners
-  document.getElementById('register-form').addEventListener('submit', (e) => {
+  document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim();
@@ -115,14 +115,14 @@ export function renderRegister() {
       return;
     }
 
-    const result = register({ name, email, password, company, phone });
+    const result = await register({ name, email, password, company, phone });
     if (result.success) {
       
       const pendingStr = sessionStorage.getItem('pendingPurchase');
       if (pendingStr) {
          try {
              const reqData = JSON.parse(pendingStr);
-             addRequest(reqData);
+             await addRequest(reqData, reqData.paymentIntentId);
              sessionStorage.removeItem('pendingPurchase');
          } catch(e) {}
       }

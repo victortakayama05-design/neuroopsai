@@ -165,10 +165,18 @@ async function initializeStripeElements() {
 
   try {
     const { planName, amount, type, coupon } = window._checkoutState;
+    
+    // Obter email se estiver logado
+    let customerEmail = undefined;
+    if (await isLoggedIn()) {
+       const u = await getUser();
+       customerEmail = u.email;
+    }
+
     const response = await fetch(`${API_URL}/create-payment-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ planName, priceAmount: amount, planType: type, coupon }),
+      body: JSON.stringify({ planName, priceAmount: amount, planType: type, coupon, customerEmail }),
     });
     
     if (!response.ok) throw new Error('Falha no Backend');
@@ -211,34 +219,19 @@ async function initializeStripeElements() {
           complexityName: planName,
           platformName: 'Stripe API',
           price: amount,
-          paymentStatus: 'Aprovado (Logado)',
+          paymentStatus: 'Processando Transação...',
           paymentTime: new Date().toISOString()
         };
 
-        if (isLoggedIn()) {
-            addRequest(record, window._checkoutState.paymentIntentId);
-            
-            // 🤖 ACIONAMENTO N8N AUTOMAÇÃO (Via Proxy Seguro)
-            try {
-               const u = getUser();
-               fetch(`${API_URL}/api/notify-n8n`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                     service: 'chatbots-inteligentes',
-                     product: planName,
-                     customerName: u.name,
-                     customerEmail: u.email
-                  })
-               });
-            } catch(e) { console.log('N8n trigger error', e); }
+        if (await isLoggedIn()) {
+            await addRequest(record, window._checkoutState.paymentIntentId);
 
             setTimeout(() => {
-                showToast('Pagamento Recebido e Agentes Acionados!', 'success');
+                showToast('Pagamento Recebido! Em processamento...', 'success');
                 window.location.hash = `#/dashboard?payment=success&plan_name=${encodeURIComponent(planName)}`;
-            }, 1500);
+            }, 1000);
         } else {
-            record.paymentStatus = 'Aprovado (Guest)';
+            record.paymentStatus = 'Processando (Guest)...';
             sessionStorage.setItem('pendingPurchase', JSON.stringify({ ...record, paymentIntentId: window._checkoutState.paymentIntentId }));
             setTimeout(() => {
                 showToast('Pagamento Aprovado!', 'success');

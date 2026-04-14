@@ -55,7 +55,7 @@ export function renderLogin() {
   `;
 
   // Event listeners
-  document.getElementById('login-form').addEventListener('submit', (e) => {
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
@@ -65,7 +65,7 @@ export function renderLogin() {
       return;
     }
 
-    const result = login(email, password);
+    const result = await login(email, password);
     if (result.success) {
       showToast(`Bem-vindo, ${result.user.name}!`, 'success');
       renderNavbar();

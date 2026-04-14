@@ -11,15 +11,17 @@ const formData = {
   contexto: { numFunc: '', funcMensal: '', urgencia: '', conhecimento: '', msg: '' }
 };
 
-export function renderNewRequest({ query }) {
-  if (!isLoggedIn()) {
+export async function renderNewRequest({ query }) {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:50vh;"><span class="material-symbols-rounded spin gradient-emoji" style="font-size:3rem;">sync</span></div>';
+
+  if (!(await isLoggedIn())) {
     navigateTo('/login');
     return;
   }
   
   if (query?.get('plan')) formData.plano = query.get('plan');
   
-  const main = document.getElementById('main-content');
   renderWizard(main);
 }
 

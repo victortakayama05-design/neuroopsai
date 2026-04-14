@@ -6,7 +6,7 @@ export async function renderAdmin() {
   
   // Security check: Must be admin
   const user = await getUser();
-  if (!user || user.email !== 'financeiro@neuroopsai.online') {
+  if (!user || user.email !== 'victor@neuroopsai.online') {
     navigateTo('/dashboard');
     return;
   }

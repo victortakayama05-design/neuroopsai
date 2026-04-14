@@ -1,191 +1,288 @@
-// Auth state management with localStorage
-// Will be replaced with Supabase in production
+import { supabase } from './config/supabase.js';
 
-const AUTH_KEY = 'neuroops_auth';
-const USERS_KEY = 'neuroops_users';
+let currentUser = null;
 
-// Sample demo requests
-function createDemoRequests(userId) {
-  return [
-    {
-      id: 'req_001',
-      userId,
-      service: 'automacao-workflows',
-      serviceName: 'Automação de Workflows',
-      complexity: 'pro',
-      complexityName: 'Pro',
-      platform: 'n8n',
-      platformName: 'N8N',
-      title: 'Automação de Onboarding de Clientes',
-      description: 'Criar workflow completo de onboarding automatizado com verificação de identidade, envio de documentos e aprovação via agentes de IA.',
-      status: 'development',
-      createdAt: '2026-04-05T14:30:00Z',
-      updatedAt: '2026-04-08T10:15:00Z',
-      price: 9997,
-    },
-    {
-      id: 'req_002',
-      userId,
-      service: 'chatbots-inteligentes',
-      serviceName: 'Chatbots Inteligentes',
-      complexity: 'basico',
-      complexityName: 'Básico',
-      platform: 'n8n',
-      platformName: 'N8N',
-      title: 'Chatbot de Suporte WhatsApp',
-      description: 'Chatbot inteligente para atendimento 24/7 no WhatsApp com integração ao CRM da empresa.',
-      status: 'completed',
-      createdAt: '2026-03-20T09:00:00Z',
-      updatedAt: '2026-04-03T16:45:00Z',
-      price: 3997,
-    },
-    {
-      id: 'req_003',
-      userId,
-      service: 'business-intelligence',
-      serviceName: 'Business Intelligence',
-      complexity: 'basico',
-      complexityName: 'Básico',
-      platform: 'n8n',
-      platformName: 'N8N',
-      title: 'Dashboard de Vendas em Tempo Real',
-      description: 'Dashboard inteligente com métricas de vendas, alertas automáticos e relatório diário.',
-      status: 'pending',
-      createdAt: '2026-04-10T08:30:00Z',
-      updatedAt: '2026-04-10T08:30:00Z',
-      price: 3997,
-    },
-  ];
-}
-
+// Initialize Auth State Listener
 export function initAuth() {
-  // Initialize empty users list if not exists
-  if (!localStorage.getItem(USERS_KEY)) {
-    localStorage.setItem(USERS_KEY, JSON.stringify([]));
+  // Listen for auth changes
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      await fetchProfile(session.user.id);
+    } else {
+      currentUser = null;
+    }
+  });
+}
+
+// Fetch user profile from DB
+async function fetchProfile(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+  
+  if (data) {
+    currentUser = {
+      ...data,
+      planName: data.planname // Map lowercased columns to JS spec
+    };
   }
 }
 
-export function getUser() {
-  const authData = localStorage.getItem(AUTH_KEY);
-  if (!authData) return null;
-  try {
-    return JSON.parse(authData);
-  } catch {
-    return null;
+// Ensure user is loaded
+export async function getUser() {
+  if (currentUser) return currentUser;
+  
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (session?.user) {
+    await fetchProfile(session.user.id);
+    return currentUser;
   }
+  return null;
 }
 
-export function isLoggedIn() {
-  return !!getUser();
+export async function isLoggedIn() {
+  const user = await getUser();
+  return !!user;
 }
 
-export function login(email, password) {
-  const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
-  const user = users.find(u => u.email === email && u.password === password);
-  if (user) {
-    const { password: _, ...userData } = user;
-    localStorage.setItem(AUTH_KEY, JSON.stringify(userData));
-    return { success: true, user: userData };
+export async function login(email, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    let msg = error.message;
+    if (msg.includes('Invalid login credentials')) {
+      msg = 'E-mail ou senha incorretos.';
+    }
+    return { success: false, error: msg };
   }
-  return { success: false, error: 'Email ou senha incorretos.' };
+  await fetchProfile(data.user.id);
+  return { success: true, user: currentUser };
 }
 
-export function register({ name, email, password, company, phone }) {
-  const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
-
-  if (users.find(u => u.email === email)) {
-    return { success: false, error: 'Este email já está cadastrado.' };
-  }
-
-  const newUser = {
-    id: 'user_' + Date.now(),
-    name,
+export async function register({ name, email, password, company, phone }) {
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    company: company || '',
-    phone: phone || '',
-    plan: null,
-    planName: null,
-    createdAt: new Date().toISOString(),
-  };
+    options: {
+      data: {
+        name,
+        company: company || '',
+        phone: phone || ''
+      }
+    }
+  });
 
-  users.push(newUser);
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-
-  const { password: _, ...userData } = newUser;
-  localStorage.setItem(AUTH_KEY, JSON.stringify(userData));
-
-  return { success: true, user: userData };
+  if (error) {
+    let msg = error.message;
+    if (msg.includes('already registered')) {
+        msg = 'Este e-mail já está em uso.';
+    }
+    return { success: false, error: msg };
+  }
+  
+  // Give postgres time to trigger and insert into profiles
+  await new Promise(resolve => setTimeout(resolve, 500));
+  await fetchProfile(data.user.id);
+  return { success: true, user: currentUser };
 }
 
-export function logout() {
-  localStorage.removeItem(AUTH_KEY);
+export async function logout() {
+  await supabase.auth.signOut();
+  currentUser = null;
 }
 
-export function updateUser(updates) {
-  const user = getUser();
+export async function updateUser(updates) {
+  const user = await getUser();
   if (!user) return false;
 
-  const updatedUser = { ...user, ...updates };
-  localStorage.setItem(AUTH_KEY, JSON.stringify(updatedUser));
-
-  // Also update in users list
-  const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
-  const idx = users.findIndex(u => u.id === user.id);
-  if (idx !== -1) {
-    users[idx] = { ...users[idx], ...updates };
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  const dbUpdates = { ...updates };
+  if (dbUpdates.planName) {
+    dbUpdates.planname = dbUpdates.planName;
+    delete dbUpdates.planName;
   }
 
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(dbUpdates)
+    .eq('id', user.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Update error:', error);
+    return false;
+  }
+  
+  currentUser = { ...data, planName: data.planname };
   return true;
 }
 
 // Request management
-export function getRequests() {
-  const user = getUser();
+export async function getRequests() {
+  const user = await getUser();
   if (!user) return [];
-  const key = `neuroops_requests_${user.id}`;
-  try {
-    return JSON.parse(localStorage.getItem(key) || '[]');
-  } catch {
+  
+  const { data, error } = await supabase
+    .from('requests')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+    
+  if (error) {
+    console.error(error);
     return [];
   }
+  
+  return data.map(r => ({
+    ...r,
+    serviceName: r.servicename,
+    complexityName: r.complexityname,
+    platformName: r.platformname,
+    paymentStatus: r.paymentstatus,
+    paymentIntentId: r.paymentintentid,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at
+  }));
 }
 
-export function addRequest(request, paymentIntentId) {
-  const user = getUser();
+export async function addRequest(request, paymentIntentId) {
+  const user = await getUser();
   if (!user) return null;
-  const key = `neuroops_requests_${user.id}`;
-  const requests = getRequests();
-  const newRequest = {
-    id: 'req_' + Date.now(),
-    userId: user.id,
-    ...request,
-    paymentIntentId,
-    status: 'pending',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+  
+  const payload = {
+    user_id: user.id,
+    service: request.service,
+    servicename: request.serviceName,
+    complexity: request.complexity,
+    complexityname: request.complexityName,
+    platform: request.platform,
+    platformname: request.platformName,
+    title: request.title,
+    description: request.description,
+    status: 'processando',
+    price: request.price,
+    paymentstatus: request.paymentStatus || 'Processando...',
+    paymentintentid: paymentIntentId || null,
   };
-  requests.unshift(newRequest);
-  localStorage.setItem(key, JSON.stringify(requests));
-  return newRequest;
-}
 
-export function getRequestById(id) {
-  const requests = getRequests();
-  return requests.find(r => r.id === id) || null;
-}
+  const { data, error } = await supabase
+    .from('requests')
+    .insert([payload])
+    .select()
+    .single();
 
-export function updateRequest(id, updates) {
-  const user = getUser();
-  if (!user) return false;
-  const key = `neuroops_requests_${user.id}`;
-  const requests = getRequests();
-  const idx = requests.findIndex(r => r.id === id);
-  if (idx !== -1) {
-    requests[idx] = { ...requests[idx], ...updates, updatedAt: new Date().toISOString() };
-    localStorage.setItem(key, JSON.stringify(requests));
-    return true;
+  if (error) {
+    console.error(error);
+    return null;
   }
-  return false;
+  
+  return {
+    ...data,
+    serviceName: data.servicename,
+    complexityName: data.complexityname,
+    platformName: data.platformname,
+    paymentStatus: data.paymentstatus,
+    paymentIntentId: data.paymentintentid,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at
+  };
+}
+
+export async function getRequestById(id) {
+  const { data, error } = await supabase
+    .from('requests')
+    .select('*')
+    .eq('id', id)
+    .single();
+    
+  if (error || !data) return null;
+  
+  return {
+    ...data,
+    serviceName: data.servicename,
+    complexityName: data.complexityname,
+    platformName: data.platformname,
+    paymentStatus: data.paymentstatus,
+    paymentIntentId: data.paymentintentid,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at
+  };
+}
+
+export async function updateRequest(id, updates) {
+  const dbUpdates = { ...updates };
+  if (dbUpdates.paymentIntentId) {
+    dbUpdates.paymentintentid = dbUpdates.paymentIntentId;
+    delete dbUpdates.paymentIntentId;
+  }
+  
+  if (dbUpdates.paymentStatus) {
+    dbUpdates.paymentstatus = dbUpdates.paymentStatus;
+    delete dbUpdates.paymentStatus;
+  }
+  
+  const { data, error } = await supabase
+    .from('requests')
+    .update(dbUpdates)
+    .eq('id', id);
+    
+  if (error) {
+    console.error(error);
+    return false;
+  }
+  return true;
+}
+
+// Mensageria (Chat entre Cliente e Agentes)
+export async function getMessages(requestId) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('request_id', requestId)
+    .order('created_at', { ascending: true });
+    
+  if (error) {
+    console.error('Erro buscando msgs:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function sendMessage(requestId, content) {
+  const user = await getUser();
+  if (!user) return null;
+
+  const payload = {
+    request_id: requestId,
+    sender_type: 'client',
+    content: content
+  };
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Erro enviando msg:', error);
+    return null;
+  }
+
+  // Desperta os Agentes N8N silenciosamente com a mensagem do cliente
+  try {
+     fetch('https://n8n.srv1263977.hstgr.cloud/webhook/neuroops-chat-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+           requestId: requestId, 
+           content: content,
+           customerName: user.name,
+           customerEmail: user.email
+        })
+     });
+  } catch(e) { console.log('Ignored n8n webhook error', e); }
+
+  return data;
 }

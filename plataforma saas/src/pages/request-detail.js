@@ -1,11 +1,14 @@
-import { isLoggedIn, getRequestById, updateRequest } from '../auth.js';
+import { isLoggedIn, getRequestById, updateRequest, getMessages, sendMessage } from '../auth.js';
 import { navigateTo } from '../router.js';
 import { requestStatuses } from '../data/services.js';
 import { showToast } from '../components/modal.js';
 import { API_URL } from '../config.js';
 
-export function renderRequestDetail({ query }) {
-  if (!isLoggedIn()) {
+export async function renderRequestDetail({ query }) {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:50vh;"><span class="material-symbols-rounded spin gradient-emoji" style="font-size:3rem;">sync</span></div>';
+
+  if (!(await isLoggedIn())) {
     navigateTo('/login');
     return;
   }
@@ -16,13 +19,12 @@ export function renderRequestDetail({ query }) {
     return;
   }
 
-  const req = getRequestById(reqId);
+  const req = await getRequestById(reqId);
   if (!req) {
     navigateTo('/requests');
     return;
   }
 
-  const main = document.getElementById('main-content');
   const status = requestStatuses[req.status] || requestStatuses.pending;
 
   const paymentTimeStr = req.paymentTime 
@@ -31,8 +33,10 @@ export function renderRequestDetail({ query }) {
     
   const paymentStatus = req.paymentStatus || 'Aprovado (Logado)';
 
+  const messages = await getMessages(reqId);
+
   main.innerHTML = `
-    <div class="requests-page" style="padding: var(--sp-12) 0;">
+    <div class="requests-page" style="padding: var(--sp-12) 0; min-height: 100vh;">
       <div class="container" style="max-width: 900px;">
         <button class="btn btn-ghost" id="back-btn" style="margin-bottom: var(--sp-6); display:flex; align-items:center; gap:0.5rem; color:var(--text-secondary);">
           <span class="material-symbols-rounded">arrow_back</span> Voltar à Central
@@ -148,12 +152,69 @@ export function renderRequestDetail({ query }) {
           </div>
           `}
         </div>
+
+        <!-- Chat Pós Venda -->
+        <div class="glass-card-static" style="margin-top: var(--sp-8); padding: var(--sp-8); position: relative; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.4);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: var(--sp-6); border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1rem;">
+               <h2 style="font-size: var(--fs-xl); display:flex; align-items:center; gap:0.5rem;">
+                 <span class="material-symbols-rounded" style="color:var(--violet-400);">support_agent</span> Central de Controle da IA & Pós-Venda
+               </h2>
+            </div>
+            
+            <div id="chat-messages" style="display:flex; flex-direction:column; gap:1rem; max-height:400px; overflow-y:auto; padding-right:1rem; margin-bottom:1.5rem;">
+               ${messages.length === 0 ? `
+                  <div style="text-align:center; color:var(--text-tertiary); padding: 2rem;">
+                      Nenhum contato realizado ainda. Uma IA ou Engenheiro Arquiteto será alocado em breve!
+                  </div>
+               ` : messages.map(m => {
+                  const isClient = m.sender_type === 'client';
+                  const alignment = isClient ? 'flex-end' : 'flex-start';
+                  const bg = isClient ? 'var(--violet-600)' : 'rgba(255,255,255,0.05)';
+                  let icon = 'person';
+                  let nameLabel = 'Você';
+                  
+                  if (!isClient) {
+                     if(m.sender_type === 'agent_support') { icon = 'headset_mic'; nameLabel = 'Suporte Master'; }
+                     else if(m.sender_type === 'agent_dev') { icon = 'code_blocks'; nameLabel = 'Agente Arquiteto Dev'; }
+                     else { icon = 'smart_toy'; nameLabel = 'Sistema Hera'; }
+                  }
+
+                  return `
+                     <div style="align-self: ${alignment}; max-width:75%; display:flex; flex-direction:column; gap:0.3rem;">
+                         <div style="display:flex; align-items:center; gap:0.4rem; justify-content:${isClient ? 'flex-end' : 'flex-start'};">
+                            ${isClient ? '' : `<span class="material-symbols-rounded" style="font-size:1.1rem; color:var(--violet-300);">${icon}</span>`}
+                            <span style="font-size:0.8rem; color:var(--text-tertiary);">${nameLabel}</span>
+                         </div>
+                         <div style="background:${bg}; padding: 0.8rem 1.2rem; border-radius: 8px; font-size:0.95rem; line-height:1.5; color:var(--text-primary);">
+                             ${m.content}
+                         </div>
+                         <span style="font-size:0.75rem; color:var(--text-tertiary); align-self:${isClient ? 'flex-end' : 'flex-start'};">
+                            ${new Date(m.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
+                         </span>
+                     </div>
+                  `;
+               }).join('')}
+            </div>
+
+            <!-- Chat Input form -->
+            <div style="display:flex; gap:1rem; align-items:center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.5rem;">
+                <input id="chat-input" type="text" placeholder="Envie anexos, links, regras de negócio ou fale com o Arquiteto responsável..." 
+                   style="flex:1; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:0.8rem 1.2rem; color:#fff; font-size:0.95rem;">
+                <button id="chat-send" class="btn btn-primary" style="display:flex; align-items:center; gap:0.5rem; padding: 0.8rem 1.5rem;">
+                   Enviar <span class="material-symbols-rounded" style="font-size:1.2rem;">send</span>
+                </button>
+            </div>
+        </div>
+
       </div>
     </div>
   `;
 
+  // Auto-scroll chat to bottom
+  const chatScroll = document.getElementById('chat-messages');
+  if(chatScroll) chatScroll.scrollTop = chatScroll.scrollHeight;
+
   // Listeners
-  // Function to process Real Refund
   const processRealRefund = async () => {
      if(req.paymentIntentId) {
         try {
@@ -179,8 +240,8 @@ export function renderRequestDetail({ query }) {
      const timerEl = document.getElementById('countdown-timer');
      
      if (remaining <= 0) {
-        processRealRefund().then(() => {
-            updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado (Timer Esgotado)' });
+        processRealRefund().then(async () => {
+            await updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado (Timer Esgotado)' });
             if (timerEl) renderRequestDetail({ query }); // redraw
         });
      } else {
@@ -188,8 +249,8 @@ export function renderRequestDetail({ query }) {
            remaining--;
            if (remaining <= 0) {
               clearInterval(timerInterval);
-              processRealRefund().then(() => {
-                  updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado (Timer Esgotado)' });
+              processRealRefund().then(async () => {
+                  await updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado (Timer Esgotado)' });
                   renderRequestDetail({ query });
               });
               return;
@@ -208,17 +269,17 @@ export function renderRequestDetail({ query }) {
     navigateTo('/requests');
   });
 
-  document.getElementById('btn-cancel-no-refund')?.addEventListener('click', () => {
+  document.getElementById('btn-cancel-no-refund')?.addEventListener('click', async () => {
      if(confirm('Atenção: A operação será suspensa provisoriamente. Iniciaremos um cronômetro de 3 Horas para destruição automática e reembolso se não for reativada. Concorda?')) {
-        updateRequest(req.id, { status: 'paused', paymentStatus: 'Pausado (Retido)', pausedAt: Date.now() });
+        await updateRequest(req.id, { status: 'paused', paymentStatus: 'Pausado (Retido)', pausedAt: Date.now() });
         showToast('Operação pausada com protocolo de alerta. Cronômetro ativado.', 'warning');
         renderRequestDetail({ query });
      }
   });
 
-  document.getElementById('btn-reactivate')?.addEventListener('click', () => {
+  document.getElementById('btn-reactivate')?.addEventListener('click', async () => {
      if (timerInterval) clearInterval(timerInterval);
-     updateRequest(req.id, { status: 'pending', paymentStatus: 'Aprovado (Logado)' });
+     await updateRequest(req.id, { status: 'pending', paymentStatus: 'Aprovado (Logado)' });
      showToast('Cronômetro cancelado. Operação reativada em produção com sucesso!', 'success');
      renderRequestDetail({ query });
   });
@@ -228,7 +289,7 @@ export function renderRequestDetail({ query }) {
         if (timerInterval) clearInterval(timerInterval);
         document.getElementById('btn-force-destroy').innerHTML = 'Destruindo Coisas...';
         await processRealRefund();
-        updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado' });
+        await updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado' });
         showToast('Destruição forçada concluída com API Stripe.', 'error');
         renderRequestDetail({ query });
      }
@@ -238,9 +299,32 @@ export function renderRequestDetail({ query }) {
      if(confirm('Operação Risco: Emitir ordem de Estorno/Refund para a Stripe API imediatamente?')) {
         document.getElementById('btn-cancel-refund').innerHTML = 'Emitindo Refund...';
         await processRealRefund();
-        updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado' });
+        await updateRequest(req.id, { status: 'canceled', paymentStatus: 'Reembolsado' });
         showToast('Sucesso. A comunicação com o Dashboard da Stripe validou a devolução.', 'success');
         renderRequestDetail({ query });
-     }
-  });
+      }
+   });
+
+   // Chat Dispatch Listener
+   const chatBtn = document.getElementById('chat-send');
+   const chatInput = document.getElementById('chat-input');
+   if(chatBtn && chatInput) {
+      chatBtn.addEventListener('click', async () => {
+         const txt = chatInput.value.trim();
+         if(!txt) return;
+         chatBtn.innerHTML = '<span class="material-symbols-rounded spin">sync</span>';
+         
+         const res = await sendMessage(req.id, txt);
+         if(res) {
+             // Redesenha para ver a msg nova
+             renderRequestDetail({ query });
+         } else {
+             showToast('Erro ao enviar mensagem', 'error');
+             chatBtn.innerHTML = 'Enviar <span class="material-symbols-rounded" style="font-size:1.2rem;">send</span>';
+         }
+      });
+      chatInput.addEventListener('keypress', (e) => {
+         if(e.key === 'Enter') chatBtn.click();
+      });
+   }
 }

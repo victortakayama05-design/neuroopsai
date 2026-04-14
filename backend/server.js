@@ -2,6 +2,12 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { createClient } = require('@supabase/supabase-js');
+
+// Configuração Supabase Backend (Permissões ROOT bypass de RLS)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const app = express();
 const corsOptions = {
@@ -9,11 +15,86 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
+
+// 0. Webhook da Stripe (Garantir que express.raw seja usado antes do express.json centralizado para conseguir validar assinatura)
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+  try {
+    if (endpointSecret) {
+       event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } else {
+       event = JSON.parse(req.body); // Fallback para dev local se não tiver secret ainda
+    }
+  } catch (err) {
+    console.error(`Webhook Error: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  if (event.type === 'payment_intent.succeeded') {
+    const paymentIntent = event.data.object;
+    console.log(`PaymentIntent for ${paymentIntent.amount} was successful! ID: ${paymentIntent.id}`);
+    
+    // Atualiza o banco de dados via Supabase Admin
+    try {
+       const { data, error } = await supabase
+          .from('requests')
+          .update({ 
+             status: 'pending', 
+             paymentstatus: 'Aprovado (Webhook Verificado)'
+          })
+          .eq('paymentintentid', paymentIntent.id)
+          .select()
+          .single();
+          
+       if (error) console.error("Erro Supabase Update:", error);
+       
+       if (data && !error) {
+           // Buscar dados do usuário (Profile)
+           let uEmail = 'Cliente Webhook';
+           let uName = 'Usuário Verificado';
+           const { data: profile } = await supabase.from('profiles').select('name, email').eq('id', data.user_id).single();
+           if (profile) {
+              uName = profile.name;
+              uEmail = profile.email;
+           }
+
+           // Notificar N8N Imediatamente
+           const uPlan = data.complexityname || paymentIntent.description;
+           
+           try {
+               const n8nUrl = 'https://n8n.srv1263977.hstgr.cloud/webhook/neuroops-checkout';
+               await fetch(n8nUrl, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                    requestId: data.id,
+                    source: 'Stripe_Secure_Webhook',
+                    service: 'neuroops_automacao',
+                    product: uPlan,
+                    customerName: uName,
+                    customerEmail: uEmail,
+                    amount: paymentIntent.amount / 100
+                 })
+               });
+           } catch(n8nError) { console.error("Erro N8N", n8nError); }
+       }
+    } catch (e) {
+       console.error("Falha ao lidar com a request:", e);
+    }
+  }
+
+  res.json({received: true});
+});
+
 app.use(express.json());
 
 // 1. Criação de Intenção de Pagamento
 app.post('/create-payment-intent', async (req, res) => {
-  const { planName, priceAmount, planType, coupon } = req.body;
+  const { planName, priceAmount, planType, coupon, customerEmail } = req.body;
   try {
     let finalAmount = priceAmount * 100;
     if (coupon) {
@@ -31,6 +112,9 @@ app.post('/create-payment-intent', async (req, res) => {
       description: desc,
       automatic_payment_methods: { enabled: true },
     };
+    if (customerEmail) {
+      opts.receipt_email = customerEmail;
+    }
     if (planType === 'subscription') {
         opts.setup_future_usage = 'off_session';
     }
@@ -100,25 +184,46 @@ app.post('/api/billing-history', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 });
 
-// 6. Proxy para N8N (Bypass CORS)
-app.post('/api/notify-n8n', async (req, res) => {
+
+
+// 6. API para Agentes N8N interagirem no Pós-Venda
+app.post('/api/agent/reply', async (req, res) => {
+  // Chamada vinda do N8N para atualizar o chat
+  const { requestId, senderType, content } = req.body;
+  if (!requestId || !content) return res.status(400).json({ error: 'Missing params' });
+
   try {
-     const n8nUrl = 'https://n8n.srv1263977.hstgr.cloud/webhook/neuroops-checkout';
-     // Usamos fetch nativo do Node 18+
-     const response = await fetch(n8nUrl, {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify(req.body)
-     });
-     
-     if (response.ok) {
-       res.json({ success: true });
-     } else {
-       res.status(500).json({ error: 'Falha no N8N' });
-     }
-  } catch (e) {
-     res.status(500).json({ error: e.message });
-  }
+     const { data, error } = await supabase
+        .from('messages')
+        .insert([{
+           request_id: requestId,
+           sender_type: senderType || 'system',
+           content: content
+        }]);
+
+     if (error) throw error;
+     res.json({ success: true, message: 'Reply posted' });
+  } catch (e) { res.status(500).json({ error: e.message }) }
+});
+
+app.post('/api/agent/status', async (req, res) => {
+  // Chamada vinda do N8N para atualizar o andamento do pedido (ex: "Em Desenvolvimento", "Testing")
+  const { requestId, newStatus, newPaymentStatus } = req.body;
+  if (!requestId) return res.status(400).json({ error: 'Missing requestId' });
+
+  try {
+     const updates = { updated_at: new Date().toISOString() };
+     if(newStatus) updates.status = newStatus;
+     if(newPaymentStatus) updates.paymentstatus = newPaymentStatus;
+
+     const { data, error } = await supabase
+        .from('requests')
+        .update(updates)
+        .eq('id', requestId);
+
+     if (error) throw error;
+     res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }) }
 });
 
 const PORT = process.env.PORT || 4243;

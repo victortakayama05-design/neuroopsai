@@ -1,0 +1,94 @@
+{
+  "name": "NeuroOps: Orquestrador de Projetos",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "neuroops-checkout",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook NeuroOps",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.service }}",
+              "operation": "equals",
+              "value2": "chatbots-inteligentes"
+            }
+          ]
+        }
+      },
+      "id": "if-node",
+      "name": "É Chatbot?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "O cliente {{ $json.body.customerName || 'Cliente' }} (Email: {{ $json.body.customerEmail || 'N/A' }}) comprou um plano empresarial de Chatbots Inteligentes. Aja como Arquiteto Técnico. Escreva um e-mail de Boas-Vindas contendo os links fictícios para download do Workflow JSON e um Guia Avançado de deploy. O E-mail deve ser requintado, tecnológico e altamente profissional, padrão Takayama/NeuroOps.",
+        "options": {}
+      },
+      "id": "agent-node",
+      "name": "AI: Criar Base de Conhecimento",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [650, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { assunto: 'Seus Ativos de Inteligência Artificial NeuroOps', corpo: $input.first().json.output, alerta: 'CONECTE O GMAIL NESTE NODE PARA DISPARO' } }];"
+      },
+      "id": "code-node",
+      "name": "Ponto de Envio Dummy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    }
+  ],
+  "connections": {
+    "Webhook NeuroOps": {
+      "main": [
+        [
+          {
+            "node": "É Chatbot?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Chatbot?": {
+      "main": [
+        [
+          {
+            "node": "AI: Criar Base de Conhecimento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Criar Base de Conhecimento": {
+      "main": [
+        [
+          {
+            "node": "Ponto de Envio Dummy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

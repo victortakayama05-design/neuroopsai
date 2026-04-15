@@ -116,7 +116,7 @@ export async function renderCheckout({ query }) {
       msg.style.color = "var(--text-secondary)";
       
       try {
-          const res = await fetch(`${API_URL}/api/validate-coupon`, {
+          const res = await fetch(`https://n8n.srv1263977.hstgr.cloud/webhook/neuroops-validate-coupon`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })
           });
           const data = await res.json();
@@ -173,7 +173,7 @@ async function initializeStripeElements() {
        customerEmail = u.email;
     }
 
-    const response = await fetch(`${API_URL}/create-payment-intent`, {
+    const response = await fetch(`https://n8n.srv1263977.hstgr.cloud/webhook/neuroops-create-payment-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ planName, priceAmount: amount, planType: type, coupon, customerEmail }),

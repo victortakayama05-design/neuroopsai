@@ -1,0 +1,143 @@
+{
+  "name": "NeuroOps: Base de Engenharia & Pós-Venda (Central AI)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "neuroops-checkout",
+        "options": {}
+      },
+      "id": "webhook-entrada-pedido",
+      "name": "Webhook (Novo Pagamento Aprovado)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [ 0, 100 ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4-turbo",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "Você é o Agente Desenvolvedor da Takayama Advisory. Escreva documentaçao oficial (README) de entrega do projeto {{ $json.body.product }} (Serviço: {{ $json.body.service }}) para o cliente {{ $json.body.customerName }}. Celebre que a infraestrutura foi montada com sucesso e liste 3 passos simples que ele deve fazer, finalizando se colocando a disposição no chat."
+            }
+          ]
+        }
+      },
+      "id": "agent-dev",
+      "name": "Obreiro: Criar Documentação Mestra",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [ 250, 100 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://neuroopsai.online/api/agent/status",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "requestId", "value": "={{ $('Webhook (Novo Pagamento Aprovado)').item.json.body.requestId }}" },
+            { "name": "newStatus", "value": "active" },
+            { "name": "newPaymentStatus", "value": "Ativo (Deploy Concluído)" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-status-api",
+      "name": "API: Atualizar Status do Cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [ 600, 0 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://neuroopsai.online/api/agent/reply",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "requestId", "value": "={{ $('Webhook (Novo Pagamento Aprovado)').item.json.body.requestId }}" },
+            { "name": "senderType", "value": "agent_dev" },
+            { "name": "content", "value": "={{ $json.output }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "reply-chat-api",
+      "name": "API: Enviar README no Chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [ 600, 200 ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "neuroops-chat-reply",
+        "options": {}
+      },
+      "id": "webhook-chat-cliente",
+      "name": "Webhook (Cliente Digitou no Chat)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [ 0, 500 ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4-turbo",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "Você atua como Inteligência de Suporte 'Hera' respondendo na plataforma. O cliente {{ $json.body.customerName }} acabou de perguntar/dizer: '{{ $json.body.content }}'. Formule uma resposta profissional técnica em Markdown informando que analisou ou vai encaminhar para o agente Desenvolvedor."
+            }
+          ]
+        }
+      },
+      "id": "agent-support",
+      "name": "Hera: Pós Venda",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [ 300, 500 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://neuroopsai.online/api/agent/reply",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "requestId", "value": "={{ $('Webhook (Cliente Digitou no Chat)').item.json.body.requestId }}" },
+            { "name": "senderType", "value": "agent_support" },
+            { "name": "content", "value": "={{ $json.output }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "suporte-reply",
+      "name": "API: Responder Cliente no WebApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [ 600, 500 ]
+    }
+  ],
+  "connections": {
+    "Webhook (Novo Pagamento Aprovado)": {
+      "main": [ [ { "node": "Obreiro: Criar Documentação Mestra", "type": "main", "index": 0 } ] ]
+    },
+    "Obreiro: Criar Documentação Mestra": {
+      "main": [ 
+        [ { "node": "API: Atualizar Status do Cliente", "type": "main", "index": 0 }, 
+          { "node": "API: Enviar README no Chat", "type": "main", "index": 0 } ] 
+      ]
+    },
+    "Webhook (Cliente Digitou no Chat)": {
+      "main": [ [ { "node": "Hera: Pós Venda", "type": "main", "index": 0 } ] ]
+    },
+    "Hera: Pós Venda": {
+      "main": [ [ { "node": "API: Responder Cliente no WebApp", "type": "main", "index": 0 } ] ]
+    }
+  },
+  "settings": {}
+}

@@ -1,0 +1,154 @@
+{
+  "name": "NeuroOps: Ecossistema de Agentes Autônomos (Hera & Hermes)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "neuroops-checkout",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-secure",
+      "name": "Webhook NeuroOps (Server-side)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [ 100, 300 ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{var('source', $json.body.source)}}",
+        "rules": {
+          "rules": [
+            {
+              "value1": "={{ $json.body.source }}",
+              "operation": "equal",
+              "value2": "Stripe_Secure_Webhook"
+            }
+          ]
+        },
+        "fallbackOutput": 1
+      },
+      "id": "security-check",
+      "name": "Firewall Backend",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [ 350, 300 ]
+    },
+    {
+      "parameters": {
+        "route": "={{ $json.body.service }}"
+      },
+      "id": "switch-node",
+      "name": "Orquestradora Hera",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [ 600, 200 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "SUA_URL_DO_DISCORD_OU_SLACK_WEBHOOK",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "🚀 **NOVO CLIENTE FECHADO!**\n\n**Nome:** {{ $json.body.customerName }}\n**Email:** {{ $json.body.customerEmail }}\n**Plano:** {{ $json.body.product }}\n**Valor:** R$ {{ $json.body.amount }},00\n\n*Notificação autônoma processada pelo NeuroOps Engine.*"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "discord-alert",
+      "name": "Agente Hermes (Notificação)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [ 850, 50 ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4-turbo",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "Você é o Agente Hera, a Inteligência Artificial Arquiteta Chefe da Takayama Advisory. Escreva um e-mail refinado e altamente persuasivo dando as boas vindas ao cliente {{ $json.body.customerName }} pelo plano de automação {{ $json.body.product }}."
+            }
+          ]
+        }
+      },
+      "id": "ai-hera",
+      "name": "Agente Hera (Arquiteta de IA)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [ 850, 300 ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.customerEmail }}",
+        "subject": "Sua Jornada em IA com a NeuroOps Começou 🚀",
+        "email": "={{ $json.output }}",
+        "options": {}
+      },
+      "id": "email-dispatch",
+      "name": "Disparo E-mail Nativo",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [ 1150, 300 ]
+    }
+  ],
+  "connections": {
+    "Webhook NeuroOps (Server-side)": {
+      "main": [
+        [
+          {
+            "node": "Firewall Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firewall Backend": {
+      "main": [
+        [
+          {
+            "node": "Orquestradora Hera",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agente Hermes (Notificação)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Orquestradora Hera": {
+      "main": [
+        [
+          {
+            "node": "Agente Hera (Arquiteta de IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente Hera (Arquiteta de IA)": {
+      "main": [
+        [
+          {
+            "node": "Disparo E-mail Nativo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

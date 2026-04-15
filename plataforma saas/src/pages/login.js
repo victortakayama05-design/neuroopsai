@@ -57,21 +57,39 @@ export function renderLogin() {
   // Event listeners
   document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
+    const emailInput = document.getElementById('login-email');
+    const passwordInput = document.getElementById('login-password');
+    const submitBtn = document.getElementById('login-submit');
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
 
     if (!email || !password) {
       showToast('Preencha todos os campos.', 'error');
       return;
     }
 
-    const result = await login(email, password);
-    if (result.success) {
-      showToast(`Bem-vindo, ${result.user.name}!`, 'success');
-      renderNavbar();
-      navigateTo('/dashboard');
-    } else {
-      showToast(result.error, 'error');
+    // Enter loading state
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<span class="material-symbols-rounded spin">sync</span> Entrando...';
+    submitBtn.disabled = true;
+
+    try {
+      const result = await login(email, password);
+      if (result.success) {
+        showToast(`Bem-vindo, ${result.user.name}!`, 'success');
+        renderNavbar();
+        navigateTo('/dashboard');
+      } else {
+        showToast(result.error, 'error');
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Erro interno de conexão. Tente novamente.', 'error');
+      submitBtn.innerHTML = originalText;
+      submitBtn.disabled = false;
     }
   });
 

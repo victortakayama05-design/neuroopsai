@@ -199,47 +199,73 @@ async function initializeStripeElements() {
       e.preventDefault();
       setLoading(true);
 
-      const { error, paymentIntent } = await stripe.confirmPayment({
-        elements: elementsInstance,
-        redirect: 'if_required' 
-      });
+      const requestTitle = type === 'subscription' ? `Assinatura: ${planName}` : `Avulso: ${planName}`;
+      const requestService = type === 'subscription' ? 'Managed Services' : 'Implementação Avulsa';
 
-      if (error) {
-        if (error.type === "card_error" || error.type === "validation_error") showMessage(error.message, "error");
-        else showMessage("Um erro inesperado ocorreu.", "error");
-      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-        showMessage("Pagamento concluído com sucesso!", "success");
-        
-        const requestTitle = type === 'subscription' ? `Assinatura: ${planName}` : `Avulso: ${planName}`;
-        const requestService = type === 'subscription' ? 'Managed Services' : 'Implementação Avulsa';
+      const record = {
+        title: requestTitle,
+        service: type === 'subscription' ? 'managed' : 'avulso',
+        serviceName: requestService,
+        complexity: planName.toLowerCase().replace(/\s+/g, '-'),
+        complexityName: planName,
+        platform: 'stripe',
+        platformName: 'Stripe API',
+        description: `Projeto gerado automaticamente a partir do pagamento via Stripe. Plano: ${planName}.`,
+        price: amount,
+        paymentStatus: 'Processando Transação...',
+        paymentTime: new Date().toISOString()
+      };
 
-        const record = {
-          title: requestTitle,
-          serviceName: requestService,
-          complexityName: planName,
-          platformName: 'Stripe API',
-          price: amount,
-          paymentStatus: 'Processando Transação...',
-          paymentTime: new Date().toISOString()
-        };
-
-        if (await isLoggedIn()) {
-            await addRequest(record, window._checkoutState.paymentIntentId);
-
-            setTimeout(() => {
-                showToast('Pagamento Recebido! Em processamento...', 'success');
-                window.location.hash = `#/dashboard?payment=success&plan_name=${encodeURIComponent(planName)}`;
-            }, 1000);
-        } else {
-            record.paymentStatus = 'Processando (Guest)...';
-            sessionStorage.setItem('pendingPurchase', JSON.stringify({ ...record, paymentIntentId: window._checkoutState.paymentIntentId }));
-            setTimeout(() => {
-                showToast('Pagamento Aprovado!', 'success');
-                window.location.hash = `#/register?payment=success`;
-            }, 1000);
+      // Pre-create the request to prevent webhook race conditions if logged in
+      try {
+        if (await isLoggedIn() && !window._checkoutState.insertedId) {
+            const inserted = await addRequest(record, window._checkoutState.paymentIntentId);
+            if (inserted) window._checkoutState.insertedId = inserted.id;
         }
+      } catch (preCreateErr) {
+        console.error('Pre-create request failed (non-blocking):', preCreateErr);
+        // Continue — the webhook will handle creating the record as fallback
       }
-      setLoading(false);
+
+      let paymentSucceeded = false;
+
+      try {
+        const { error, paymentIntent } = await stripe.confirmPayment({
+          elements: elementsInstance,
+          redirect: 'if_required' 
+        });
+
+        if (error) {
+          if (error.type === "card_error" || error.type === "validation_error") showMessage(error.message, "error");
+          else showMessage("Um erro inesperado ocorreu.", "error");
+          setLoading(false);
+        } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+          paymentSucceeded = true;
+          showMessage("Pagamento concluído com sucesso!", "success");
+          setPaymentSuccess(); // Show success state on the button
+
+          if (await isLoggedIn()) {
+              setTimeout(() => {
+                  showToast('Pagamento Recebido! Em processamento...', 'success');
+                  window.location.hash = `#/dashboard?payment=success&plan_name=${encodeURIComponent(planName)}`;
+              }, 1500);
+          } else {
+              record.paymentStatus = 'Processando (Guest)...';
+              sessionStorage.setItem('pendingPurchase', JSON.stringify({ ...record, paymentIntentId: window._checkoutState.paymentIntentId }));
+              setTimeout(() => {
+                  showToast('Pagamento Aprovado!', 'success');
+                  window.location.hash = `#/register?payment=success`;
+              }, 1500);
+          }
+        } else {
+          // Payment requires action or is in another non-error state
+          setLoading(false);
+        }
+      } catch (confirmErr) {
+        console.error('Stripe confirmPayment error:', confirmErr);
+        showMessage("Erro ao processar pagamento. Tente novamente.", "error");
+        setLoading(false);
+      }
     };
 
   } catch (error) {
@@ -257,6 +283,7 @@ function showMessage(messageText, type) {
 function setLoading(isLoading) {
   const submitBtn = document.querySelector("#submit-payment");
   const btnTxt = document.querySelector("#button-text");
+  if (!submitBtn || !btnTxt) return;
   if (isLoading) {
     submitBtn.disabled = true;
     btnTxt.innerHTML = '<span class="material-symbols-rounded spin">sync</span> Processando...';
@@ -264,4 +291,14 @@ function setLoading(isLoading) {
     submitBtn.disabled = false;
     btnTxt.innerHTML = "Tentar Novamente";
   }
+}
+
+function setPaymentSuccess() {
+  const submitBtn = document.querySelector("#submit-payment");
+  const btnTxt = document.querySelector("#button-text");
+  if (!submitBtn || !btnTxt) return;
+  submitBtn.disabled = true;
+  btnTxt.innerHTML = '<span class="material-symbols-rounded">check_circle</span> Pagamento Aprovado! Redirecionando...';
+  submitBtn.style.background = 'var(--emerald-600, #059669)';
+  submitBtn.style.borderColor = 'var(--emerald-500, #10b981)';
 }

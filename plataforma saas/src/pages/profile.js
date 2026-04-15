@@ -104,7 +104,7 @@ export async function renderProfile() {
               </div>
               <div class="profile-info-row">
                 <span class="profile-info-label">Membro desde</span>
-                <span class="profile-info-value">${new Date(user.createdAt).toLocaleDateString('pt-BR')}</span>
+                <span class="profile-info-value">${user.createdAt ? new Date(user.createdAt).toLocaleDateString('pt-BR') : user.created_at ? new Date(user.created_at).toLocaleDateString('pt-BR') : '—'}</span>
               </div>
             </div>
           </div>

@@ -16,28 +16,84 @@ export function initAuth() {
 
 // Fetch user profile from DB
 async function fetchProfile(userId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-  
-  if (data) {
-    currentUser = {
-      ...data,
-      planName: data.planname // Map lowercased columns to JS spec
-    };
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('fetchProfile error:', error);
+      // If profile doesn't exist yet (new signup trigger still running), build minimal user
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user) {
+        currentUser = {
+          id: authData.user.id,
+          email: authData.user.email,
+          name: authData.user.user_metadata?.name || 'Usuário',
+          company: authData.user.user_metadata?.company || '',
+          phone: authData.user.user_metadata?.phone || '',
+          planname: null,
+          planName: null,
+          plan: null,
+          created_at: authData.user.created_at,
+          createdAt: authData.user.created_at
+        };
+      }
+      return;
+    }
+    
+    if (data) {
+      currentUser = {
+        ...data,
+        planName: data.planname, // Map lowercased columns to JS spec
+        createdAt: data.created_at
+      };
+    }
+  } catch (e) {
+    console.error('fetchProfile critical error:', e);
+    // Ensure we never leave currentUser null if we have an auth session
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user) {
+      currentUser = {
+        id: authData.user.id,
+        email: authData.user.email,
+        name: authData.user.user_metadata?.name || 'Usuário',
+        planname: null,
+        planName: null,
+        plan: null,
+        created_at: authData.user.created_at,
+        createdAt: authData.user.created_at
+      };
+    }
   }
 }
 
-// Ensure user is loaded
+// Ensure user is loaded (with timeout protection)
 export async function getUser() {
   if (currentUser) return currentUser;
   
-  const { data, error } = await supabase.auth.getSession();
-  if (data?.session?.user) {
-    await fetchProfile(data.session.user.id);
-    return currentUser;
+  try {
+    const sessionPromise = supabase.auth.getSession();
+    // Add 8s timeout to prevent infinite hanging
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('getSession timeout')), 8000)
+    );
+    
+    const { data, error } = await Promise.race([sessionPromise, timeoutPromise]);
+    
+    if (error) {
+      console.error('getSession error:', error);
+      return null;
+    }
+    
+    if (data?.session?.user) {
+      await fetchProfile(data.session.user.id);
+      return currentUser;
+    }
+  } catch (e) {
+    console.error('getUser error (timeout or network):', e);
   }
   return null;
 }
@@ -150,6 +206,8 @@ export async function addRequest(request, paymentIntentId) {
   const user = await getUser();
   if (!user) return null;
   
+  const isGuestRecovery = request.paymentStatus === 'Processando (Guest)...';
+  
   const payload = {
     user_id: user.id,
     service: request.service,
@@ -160,9 +218,9 @@ export async function addRequest(request, paymentIntentId) {
     platformname: request.platformName,
     title: request.title,
     description: request.description,
-    status: 'processando',
+    status: isGuestRecovery ? 'pending' : 'processando',
     price: request.price,
-    paymentstatus: request.paymentStatus || 'Processando...',
+    paymentstatus: isGuestRecovery ? 'Aprovado (Webhook Verificado)' : (request.paymentStatus || 'Processando...'),
     paymentintentid: paymentIntentId || null,
   };
 
@@ -173,8 +231,28 @@ export async function addRequest(request, paymentIntentId) {
     .single();
 
   if (error) {
-    console.error(error);
+    console.error('Insert Error:', error);
     return null;
+  }
+  
+  if (isGuestRecovery) {
+      try {
+           const uPlan = data.complexityname || 'Plano Adquirido';
+           const n8nUrl = 'https://n8n.srv1263977.hstgr.cloud/webhook/neuroops-checkout';
+           fetch(n8nUrl, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+                requestId: data.id,
+                source: 'Frontend_Guest_Recovery',
+                service: 'neuroops_automacao',
+                product: uPlan,
+                customerName: user.name,
+                customerEmail: user.email,
+                amount: data.price
+             })
+           });
+      } catch(n8nError) { console.error("Erro N8N Recuperação", n8nError); }
   }
   
   return {

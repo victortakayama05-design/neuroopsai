@@ -61,23 +61,24 @@ export function renderPricing() {
 }
 
 async function syncCatalogAndUpdateUI() {
-  try {
-     const rs = await fetch(`${API_URL}/api/sync-catalog`);
-     if (rs.ok) {
-        const remoteCatalog = await rs.json();
-        plans.forEach(p => {
-          const rp = remoteCatalog.find(r => r.neuroops_id === p.id);
-          if (rp) p.priceBRL = rp.amount;
-        });
-        complexityLevels.forEach(c => {
-          let rcIds = {'basico':'avulso-basico', 'pro':'avulso-pro', 'enterprise':'avulso-enterprise'};
-          const rc = remoteCatalog.find(r => r.neuroops_id === rcIds[c.id]);
-          if (rc) c.priceBRL = rc.amount;
-        });
-     }
-  } catch(e) {
-     console.error("Stripe sync failed, falling back to local prices.");
-  }
+  // try {
+  //    const rs = await fetch(`${API_URL}/api/sync-catalog`);
+  //    if (rs.ok) {
+  //       const remoteCatalog = await rs.json();
+  //       plans.forEach(p => {
+  //         const rp = remoteCatalog.find(r => r.neuroops_id === p.id);
+  //         if (rp) p.priceBRL = rp.amount;
+  //       });
+  //       complexityLevels.forEach(c => {
+  //         let rcIds = {'basico':'avulso-basico', 'pro':'avulso-pro', 'enterprise':'avulso-enterprise'};
+  //         const rc = remoteCatalog.find(r => r.neuroops_id === rcIds[c.id]);
+  //         if (rc) c.priceBRL = rc.amount;
+  //       });
+  //    }
+  // } catch(e) {
+  //    console.error("Stripe sync failed, falling back to local prices.");
+  // }
+  console.log("Catalog sync bypassed, using local prices for immediate load.");
 
   const pGrid = document.getElementById('pricing-grid-dyn');
   if(pGrid) {

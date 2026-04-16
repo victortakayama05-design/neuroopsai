@@ -5,40 +5,70 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "neuroops-create-payment-intent",
-        "options": {}
+        "options": {},
+        "responseMode": "responseNode"
       },
       "id": "webhook-create-pi",
       "name": "Webhook (Criar PI)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [ 100, 200 ]
+      "position": [
+        100,
+        200
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://api.stripe.com/v1/payment_intents",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
           "parameters": [
-            { "name": "amount", "value": "={{ Math.round($json.body.priceAmount * 100) }}" },
-            { "name": "currency", "value": "brl" },
-            { "name": "receipt_email", "value": "={{ $json.body.customerEmail || '' }}" },
-            { "name": "metadata[planName]", "value": "={{ $json.body.planName }}" },
-            { "name": "metadata[planType]", "value": "={{ $json.body.planType }}" },
-            { "name": "metadata[coupon]", "value": "={{ $json.body.coupon || 'none' }}" }
+            {
+              "name": "amount",
+              "value": "={{ Math.round($json.body.priceAmount * 100) }}"
+            },
+            {
+              "name": "currency",
+              "value": "brl"
+            },
+            {
+              "name": "receipt_email",
+              "value": "={{ $json.body.customerEmail || '' }}"
+            },
+            {
+              "name": "metadata[planName]",
+              "value": "={{ $json.body.planName }}"
+            },
+            {
+              "name": "metadata[planType]",
+              "value": "={{ $json.body.planType }}"
+            },
+            {
+              "name": "metadata[coupon]",
+              "value": "={{ $json.body.coupon || 'none' }}"
+            }
           ]
         },
-        "options": {}
+        "options": {},
+        "nodeCredentialType": "stripeApi"
       },
       "id": "http-stripe-intent",
       "name": "Stripe: Criar Intent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [ 360, 200 ],
-      "credentials": { "httpHeaderAuth": { "id": "YOUR_STRIPE_SECRET_CREDENTIAL", "name": "Stripe API Key" } }
+      "position": [
+        360,
+        200
+      ],
+      "credentials": {
+        "stripeApi": {
+          "id": "",
+          "name": "Stripe API"
+        }
+      }
     },
     {
       "parameters": {
@@ -50,47 +80,70 @@
       "name": "Retornar Cliente Secret",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [ 620, 200 ]
+      "position": [
+        620,
+        200
+      ]
     },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "neuroops-validate-coupon",
-        "options": {}
+        "options": {},
+        "responseMode": "responseNode"
       },
       "id": "webhook-coupon",
       "name": "Webhook (Validar Cupom)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [ 100, 460 ]
+      "position": [
+        100,
+        460
+      ]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "=https://api.stripe.com/v1/coupons/{{ $json.body.code }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
         "options": {},
-        "ignoreResponseCode": true
+        "ignoreResponseCode": true,
+        "nodeCredentialType": "stripeApi"
       },
       "id": "http-stripe-coupon",
       "name": "Stripe: Buscar Cupom",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [ 360, 460 ],
-      "credentials": { "httpHeaderAuth": { "id": "YOUR_STRIPE_SECRET_CREDENTIAL", "name": "Stripe API Key" } }
+      "position": [
+        360,
+        460
+      ],
+      "credentials": {
+        "stripeApi": {
+          "id": "",
+          "name": "Stripe API"
+        }
+      }
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [ { "value1": "={{ $json.error ? false : true }}", "value2": true } ]
+          "boolean": [
+            {
+              "value1": "={{ $json.error ? false : true }}",
+              "value2": true
+            }
+          ]
         }
       },
       "id": "if-coupon-exists",
       "name": "Existe?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [ 560, 460 ]
+      "position": [
+        560,
+        460
+      ]
     },
     {
       "parameters": {
@@ -102,7 +155,10 @@
       "name": "Retornar Desconto",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [ 820, 360 ]
+      "position": [
+        820,
+        360
+      ]
     },
     {
       "parameters": {
@@ -114,13 +170,46 @@
       "name": "Retornar Erro",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [ 820, 560 ]
+      "position": [
+        820,
+        560
+      ]
     }
   ],
   "connections": {
-    "Webhook (Criar PI)": { "main": [ [ { "node": "Stripe: Criar Intent", "type": "main", "index": 0 } ] ] },
-    "Stripe: Criar Intent": { "main": [ [ { "node": "Retornar Cliente Secret", "type": "main", "index": 0 } ] ] },
-    "Webhook (Validar Cupom)": { "main": [ [ { "node": "Stripe: Buscar Cupom", "type": "main", "index": 0 } ] ] },
+    "Webhook (Criar PI)": {
+      "main": [
+        [
+          {
+            "node": "Stripe: Criar Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe: Criar Intent": {
+      "main": [
+        [
+          {
+            "node": "Retornar Cliente Secret",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (Validar Cupom)": {
+      "main": [
+        [
+          {
+            "node": "Stripe: Buscar Cupom",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Stripe: Buscar Cupom": {
       "main": [
         [
@@ -134,8 +223,20 @@
     },
     "Existe?": {
       "main": [
-        [ { "node": "Retornar Desconto", "type": "main", "index": 0 } ],
-        [ { "node": "Retornar Erro", "type": "main", "index": 0 } ]
+        [
+          {
+            "node": "Retornar Desconto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retornar Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
